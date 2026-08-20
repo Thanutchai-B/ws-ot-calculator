@@ -1,4 +1,4 @@
-const CACHE = 'ws-ot-calc-v1';
+const CACHE = 'ws-ot-calc-v2';
 const FILES = [
   './index.html',
   './manifest.json',

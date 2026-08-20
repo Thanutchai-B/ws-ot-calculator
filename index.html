@@ -120,7 +120,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
 .delete-btn{background:none;border:1px solid var(--border);border-radius:7px;color:var(--text3);padding:6px 12px;cursor:pointer;font-size:11px;font-family:var(--sans);transition:all 0.2s;white-space:nowrap;}
 .delete-btn:hover{border-color:var(--accent3);color:var(--accent3);background:#ff6b6b11;}
 
-.row-inputs{display:grid;grid-template-columns:130px 150px repeat(4,1fr);gap:10px;padding:14px 16px;align-items:end;}
+.row-inputs{display:grid;grid-template-columns:130px 150px repeat(6,1fr);gap:10px;padding:14px 16px;align-items:end;}
+@media(max-width:1100px){.row-inputs{grid-template-columns:repeat(4,1fr);}}
 @media(max-width:900px){.row-inputs{grid-template-columns:repeat(3,1fr);}}
 @media(max-width:500px){.row-inputs{grid-template-columns:repeat(2,1fr);}}
 
@@ -406,7 +407,7 @@ td.orange{color:var(--accent4);font-family:var(--mono);}
     <div class="overflow-x">
       <table><thead><tr>
         <th>#</th><th>วันที่</th><th>ประเภท</th>
-        <th>เข้างาน</th><th>เลิกงาน</th><th>เริ่มOT</th><th>จบOT</th>
+        <th>เข้างาน</th><th>เลิกงาน</th><th>OTยืดหน้า</th><th>OTยืดหลัง</th>
         <th>รวมดิบ</th><th>หักพัก</th><th>สุทธิ</th>
         <th>รายได้OT</th><th>รวม</th>
       </tr></thead>
@@ -592,6 +593,12 @@ function showAutoSave() {
     currentYear  = saved.year  || (now.getFullYear()+543);
     saved.rows.forEach(r => {
       rowId = Math.max(rowId, r.id);
+      // migrate ข้อมูลเก่า (เวอร์ชันก่อนรองรับ ยืดหน้า/ยืดหลัง) — ค่า otIn/otOut เดิมถือเป็น ยืดหลัง
+      if((r.otIn || r.otOut) && !r.otAfterIn && !r.otAfterOut){ r.otAfterIn = r.otIn; r.otAfterOut = r.otOut; }
+      if(r.otBeforeIn == null) r.otBeforeIn = '';
+      if(r.otBeforeOut == null) r.otBeforeOut = '';
+      if(r.otAfterIn == null) r.otAfterIn = '';
+      if(r.otAfterOut == null) r.otAfterOut = '';
       rows.push({...r, collapsed: r.saved || false});
       renderRow(r.id);
     });
@@ -633,9 +640,11 @@ function getBreak(h){
 
 function calcRow(r){
   const rate = (parseFloat(document.getElementById('salary').value)||0)/30/8;
-  let workH=null, rawOT=0;
+  let workH=null, otBefore=0, otAfter=0;
   if(r.workIn&&r.workOut){ let wi=timeToH(r.workIn),wo=timeToH(r.workOut); if(wo<wi)wo+=24; workH=Math.max(0,wo-wi); }
-  if(r.otIn&&r.otOut){ let oi=timeToH(r.otIn),oo=timeToH(r.otOut); if(oo<oi)oo+=24; rawOT=Math.max(0,oo-oi); }
+  if(r.otBeforeIn&&r.otBeforeOut){ let oi=timeToH(r.otBeforeIn),oo=timeToH(r.otBeforeOut); if(oo<oi)oo+=24; otBefore=Math.max(0,oo-oi); }
+  if(r.otAfterIn&&r.otAfterOut){ let oi=timeToH(r.otAfterIn),oo=timeToH(r.otAfterOut); if(oo<oi)oo+=24; otAfter=Math.max(0,oo-oi); }
+  const rawOT = otBefore + otAfter;
 
   let displayRawOT, displayBrk, displayNetOT, otInc;
   if(r.dayType==='normal'){
@@ -651,7 +660,7 @@ function calcRow(r){
     }
   }
   const total = otInc;
-  return {workH, rawOT, displayRawOT, displayBrk, displayNetOT, otInc, total};
+  return {workH, otBefore, otAfter, rawOT, displayRawOT, displayBrk, displayNetOT, otInc, total};
 }
 
 // ════════════════════════════════════════════
@@ -684,7 +693,7 @@ function closeConfirm(){ pendingSaveId=null; pendingAddDate=''; document.getElem
 
 function doAddRow(prefillDate=''){
   const id = ++rowId;
-  rows.push({id, date:prefillDate, dayType:'normal', workIn:'', workOut:'', otIn:'', otOut:'', saved:false, collapsed:false});
+  rows.push({id, date:prefillDate, dayType:'normal', workIn:'', workOut:'', otBeforeIn:'', otBeforeOut:'', otAfterIn:'', otAfterOut:'', saved:false, collapsed:false});
   renderRow(id); recalcAll(); saveData();
   
   setTimeout(() => {
@@ -750,7 +759,7 @@ function copyRowNextDay(id) {
   const newId = ++rowId;
   rows.push({
     id: newId, date: nextDate, dayType: r.dayType,
-    workIn: r.workIn, workOut: r.workOut, otIn: r.otIn, otOut: r.otOut,
+    workIn: r.workIn, workOut: r.workOut, otBeforeIn: r.otBeforeIn, otBeforeOut: r.otBeforeOut, otAfterIn: r.otAfterIn, otAfterOut: r.otAfterOut,
     saved: false, collapsed: false
   });
   if(nextDate) syncInputMonthToDate(nextDate);
@@ -794,10 +803,12 @@ function rowHTML(id, r){
     <div class="row-inputs">
       <div class="field"><label>📅 วันที่</label><input type="date" value="${r.date}" oninput="onInput(${id},'date',this.value);document.getElementById('rdateDisp-${id}').textContent=this.value||'—'"/></div>
       <div class="field"><label>🗓 ประเภทวัน</label><select onchange="onInput(${id},'dayType',this.value);document.getElementById('row-${id}').className=document.getElementById('row-${id}').className.replace(/type-\\w+/, 'type-'+this.value)"><option value="normal" ${r.dayType==='normal'?'selected':''}>📅 วันปกติ</option><option value="off" ${r.dayType==='off'?'selected':''}>🔵 วันหยุด OFF</option><option value="holiday" ${r.dayType==='holiday'?'selected':''}>🔴 วันนักขัตฤกษ์</option></select></div>
+      <div class="field"><label>⏪ OT ยืดหน้า เริ่ม</label><input type="time" value="${r.otBeforeIn}" oninput="onInput(${id},'otBeforeIn',this.value)"/></div>
+      <div class="field"><label>⏪ OT ยืดหน้า จบ</label><input type="time" value="${r.otBeforeOut}" oninput="onInput(${id},'otBeforeOut',this.value)"/></div>
       <div class="field"><label>🟢 เวลาเข้างาน</label><input id="workIn-${id}" type="time" value="${r.workIn}" oninput="onInput(${id},'workIn',this.value)"/></div>
       <div class="field"><label>🔴 เวลาเลิกงาน</label><input type="time" value="${r.workOut}" oninput="onInput(${id},'workOut',this.value)"/></div>
-      <div class="field"><label>🟡 เวลาเริ่ม OT</label><input type="time" value="${r.otIn}" oninput="onInput(${id},'otIn',this.value)"/></div>
-      <div class="field"><label>🏁 เวลาจบ OT</label><input type="time" value="${r.otOut}" oninput="onInput(${id},'otOut',this.value)"/></div>
+      <div class="field"><label>⏩ OT ยืดหลัง เริ่ม</label><input type="time" value="${r.otAfterIn}" oninput="onInput(${id},'otAfterIn',this.value)"/></div>
+      <div class="field"><label>⏩ OT ยืดหลัง จบ</label><input type="time" value="${r.otAfterOut}" oninput="onInput(${id},'otAfterOut',this.value)"/></div>
     </div>
     <div class="row-results" id="rresults-${id}">
       <div class="result-cell"><div class="result-label">ประเภทวัน</div><div class="result-value" id="rtype-${id}">—</div></div>
@@ -864,7 +875,7 @@ function buildSummary(){
     const c=calcRow(r); totals[r.dayType].h+=c.displayNetOT||0; totals[r.dayType].inc+=c.otInc||0;
     otTotal+=c.otInc||0; grandTotal+=c.total||0;
     const tl={normal:'วันปกติ',off:'วันOFF',holiday:'นักขัตฤกษ์'}[r.dayType]||'–';
-    tbody.innerHTML+=`<tr><td>${i+1}</td><td class="mono">${r.date||'–'}</td><td><span class="type-badge ${r.dayType}">${tl}</span></td><td>${r.workIn||'–'}</td><td>${r.workOut||'–'}</td><td>${r.otIn||'–'}</td><td>${r.otOut||'–'}</td><td class="mono">${hoursToHM(c.displayRawOT)}</td><td class="orange">${c.displayBrk>0?'-'+hoursToHM(c.displayBrk):'–'}</td><td class="mono hl">${hoursToHM(c.displayNetOT)}</td><td class="green">฿${fmt(c.otInc)}</td><td class="green" style="font-size:13px;">฿${fmt(c.total)}</td></tr>`;
+    tbody.innerHTML+=`<tr><td>${i+1}</td><td class="mono">${r.date||'–'}</td><td><span class="type-badge ${r.dayType}">${tl}</span></td><td>${r.workIn||'–'}</td><td>${r.workOut||'–'}</td><td class="mono" style="font-size:11px;">${(r.otBeforeIn&&r.otBeforeOut)?r.otBeforeIn+'-'+r.otBeforeOut:'–'}</td><td class="mono" style="font-size:11px;">${(r.otAfterIn&&r.otAfterOut)?r.otAfterIn+'-'+r.otAfterOut:'–'}</td><td class="mono">${hoursToHM(c.displayRawOT)}</td><td class="orange">${c.displayBrk>0?'-'+hoursToHM(c.displayBrk):'–'}</td><td class="mono hl">${hoursToHM(c.displayNetOT)}</td><td class="green">฿${fmt(c.otInc)}</td><td class="green" style="font-size:13px;">฿${fmt(c.total)}</td></tr>`;
   });
   
   document.getElementById('sumGrand').textContent=`฿${fmt(grandTotal)}`; document.getElementById('sumGrandSub').textContent=`รวม OT ฿${fmt(otTotal)}`;
