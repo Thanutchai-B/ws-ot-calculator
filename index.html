@@ -302,7 +302,7 @@ td.orange{color:var(--accent4);font-family:var(--mono);}
   </div>
   <div class="header-badges">
     <span class="badge active">วันปกติ 1.5×</span>
-    <span class="badge">วันOFF รวม 2×</span>
+    <span class="badge">วันOFF รวม 2×/3×</span>
     <span class="badge">นักขัตฤกษ์ รวม 2×/3×</span>
   </div>
 </div>
@@ -351,7 +351,7 @@ td.orange{color:var(--accent4);font-family:var(--mono);}
     <h3>📐 กฎการคำนวณ</h3>
     <div class="info-grid">
       <div class="info-item"><div class="info-dot" style="background:var(--normal)"></div><span><strong style="color:var(--normal)">วันปกติ</strong> — ชม. OT หักพักจาก OT แล้ว × 1.5×</span></div>
-      <div class="info-item"><div class="info-dot" style="background:var(--off)"></div><span><strong style="color:var(--off)">วันOFF</strong> — (งาน+OT) รวมหักพัก × 2× ทั้งหมด</span></div>
+      <div class="info-item"><div class="info-dot" style="background:var(--off)"></div><span><strong style="color:var(--off)">วันOFF</strong> — (งาน+OT) รวม: ≤10ชม. หักพัก × 2× | >10ชม. ส่วนเกิน × 3×</span></div>
       <div class="info-item"><div class="info-dot" style="background:var(--holiday)"></div><span><strong style="color:var(--holiday)">นักขัตฤกษ์</strong> — (งาน+OT) รวม: ≤10ชม. หักพัก × 2× | >10ชม. ส่วนเกิน × 3×</span></div>
     </div>
   </div>
@@ -395,7 +395,7 @@ td.orange{color:var(--accent4);font-family:var(--mono);}
   </div>
   <div class="summary-cards">
     <div class="s-card normal"><div class="s-card-label">📅 วันปกติ (1.5×)</div><div class="s-card-amount" id="sNormalAmt">฿0.00</div><div class="s-card-sub" id="sNormalSub">—</div></div>
-    <div class="s-card off"><div class="s-card-label">🔵 วันOFF (2×)</div><div class="s-card-amount" id="sOffAmt">฿0.00</div><div class="s-card-sub" id="sOffSub">—</div></div>
+    <div class="s-card off"><div class="s-card-label">🔵 วันOFF (2×/3×)</div><div class="s-card-amount" id="sOffAmt">฿0.00</div><div class="s-card-sub" id="sOffSub">—</div></div>
     <div class="s-card holiday"><div class="s-card-label">🔴 นักขัตฤกษ์ (2×/3×)</div><div class="s-card-amount" id="sHolidayAmt">฿0.00</div><div class="s-card-sub" id="sHolidaySub">—</div></div>
   </div>
   <div class="chart-wrap" id="chartWrap">
@@ -650,7 +650,12 @@ function calcRow(r){
   if(r.dayType==='normal'){
     displayRawOT = rawOT; displayBrk = getBreak(rawOT); displayNetOT = Math.max(0, rawOT - displayBrk); otInc = displayNetOT * rate * 1.5;
   } else if(r.dayType==='off'){
-    const totalRaw = (workH||0) + rawOT; displayRawOT = totalRaw; displayBrk = getBreak(totalRaw); displayNetOT = Math.max(0, totalRaw - displayBrk); otInc = displayNetOT * rate * 2.0;
+    const totalRaw = (workH||0) + rawOT; displayRawOT = totalRaw;
+    if(totalRaw <= 10){ displayBrk = getBreak(totalRaw); displayNetOT = Math.max(0, totalRaw - displayBrk); otInc = displayNetOT * rate * 2.0; }
+    else {
+      const brkFrom10 = getBreak(totalRaw); const net10 = Math.max(0, 10 - brkFrom10); const extra = totalRaw - 10;
+      displayBrk = brkFrom10; displayNetOT = net10 + extra; otInc = (net10 * 2.0 + extra * 3.0) * rate;
+    }
   } else {
     const totalRaw = (workH||0) + rawOT; displayRawOT = totalRaw;
     if(totalRaw <= 10){ displayBrk = getBreak(totalRaw); displayNetOT = Math.max(0, totalRaw - displayBrk); otInc = displayNetOT * rate * 2.0; }
